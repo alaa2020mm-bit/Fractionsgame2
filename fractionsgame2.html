@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة الكسور الاعتيادية الجماعية</title>
+    <!-- Cairo Font & Canvas Confetti -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <!-- Firebase App & Realtime Database SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --primary: #46178f;
+            --secondary: #eb134b;
+            --accent: #ffa602;
+            --green: #26890c;
+            --blue: #1368ce;
+            --bg-gradient: linear-gradient(135deg, #250850 0%, #46178f 50%, #1368ce 100%);
+            --card-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: #2c3e50;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 0.6rem;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-width: 1300px;
+            margin: 0 auto;
+            width: 100%;
+            gap: 0.5rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 0.4rem 1.2rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+            height: 48px;
+        }
+
+        header h1 {
+            font-size: 1.15rem;
+            color: var(--primary);
+            font-weight: 900;
+        }
+
+        .room-badge {
+            background: #f0f0f0;
+            color: var(--primary);
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            border: 2px solid var(--accent);
+        }
+
+        .task-banner {
+            background: var(--accent);
+            color: #000;
+            padding: 0.35rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 800;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 0.5rem;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .players-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.8rem;
+            align-items: center;
+        }
+
+        .player-card {
+            background: var(--card-bg);
+            border: 4px solid #e0e0e0;
+            border-radius: 20px;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
+
+        .player-card.active {
+            border-color: var(--accent);
+            transform: scale(1.02);
+            box-shadow: 0 0 25px rgba(255, 166, 2, 0.6);
+        }
+
+        .player-card .turn-indicator {
+            position: absolute;
+            top: -12px;
+            background: var(--secondary);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 800;
+            padding: 0.15rem 0.8rem;
+            border-radius: 12px;
+            display: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        .player-card.active .turn-indicator {
+            display: block;
+        }
+
+        .player-name {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 0.3rem;
+        }
+
+        .circle-board {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            background: #f8fafc;
+            border-radius: 50%;
+            border: 3px dashed #cbd5e1;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .circle-board svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .fraction-sum {
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+            font-weight: 800;
+            color: #334155;
+        }
+
+        .player-pieces-pool {
+            display: flex;
+            gap: 0.3rem;
+            margin-top: 0.3rem;
+            min-height: 28px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .center-dashboard {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 0.8rem;
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
+            align-items: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .dice-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border-left: 2px solid #e2e8f0;
+            padding-left: 0.8rem;
+        }
+
+        .dice {
+            width: 52px;
+            height: 52px;
+            background: var(--secondary);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.9rem;
+            font-weight: 900;
+            box-shadow: 0 6px 0px #b90b38;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .dice.rolling {
+            animation: spin 0.4s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg) scale(0.9); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(0.9); }
+        }
+
+        .btn-roll {
+            background: var(--green);
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 0px #1a5e08;
+            width: 100%;
+        }
+
+        .btn-roll:disabled {
+            background: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .table-cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .section-title {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: 800;
+        }
+
+        .cards-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            align-items: center;
+            min-height: 50px;
+            background: rgba(0,0,0,0.03);
+            padding: 6px;
+            border-radius: 10px;
+            border: 2px dashed #cbd5e1;
+        }
+
+        .card-piece {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 0.85rem;
+            color: white;
+            cursor: grab;
+            box-shadow: 0 4px 0px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+
+        .card-piece:hover:not(.disabled) {
+            transform: translateY(-3px) scale(1.08);
+        }
+
+        .card-piece.disabled {
+            opacity: 0.25;
+            filter: grayscale(100%);
+            cursor: not-allowed;
+            pointer-events: none;
+            box-shadow: none;
+        }
+
+        .card-1-2 { background: #eb134b; }
+        .card-1-4 { background: #1368ce; }
+        .card-1-6 { background: #26890c; }
+        .card-1-12 { background: #ffa602; color: #000; }
+
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(37, 8, 80, 0.88);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 1.8rem;
+            width: 90%;
+            max-width: 440px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        }
+
+        .modal h2 { color: var(--primary); margin-bottom: 0.6rem; font-size: 1.3rem; font-weight: 900; }
+        .modal input {
+            width: 100%;
+            padding: 0.6rem;
+            margin: 0.4rem 0 0.8rem;
+            border-radius: 10px;
+            border: 2px solid #cbd5e1;
+            font-size: 0.95rem;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .modal-buttons { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.6rem;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0px #250850;
+            width: 100%;
+        }
+
+        .btn-secondary {
+            background: #475569;
+            color: white;
+            border: none;
+            padding: 0.6rem;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0px #1e293b;
+            width: 100%;
+        }
+
+        .btn-teacher {
+            background: #f59e0b;
+            color: #000;
+            border: none;
+            padding: 0.6rem;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0px #b45309;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <h1>🎲 لعبة الكسور الاعتيادية الجماعية</h1>
+            <div id="roomDisplay" class="room-badge">غرفة: تجريبية</div>
+        </header>
+
+        <div id="taskBanner" class="task-banner">
+            🎯 اضغط "ارمِ النرد" لبدء اللعب وتحديد المهمة المطلوبة!
+        </div>
+
+        <div class="game-area">
+            <div class="players-container">
+                <div class="player-card active" id="playerCard0">
+                    <div class="turn-indicator">دورك الآن 🎲</div>
+                    <div class="player-name" id="p0Name">الطالب 1</div>
+                    <div class="circle-board" id="board0" ondragover="allowDrop(event)" ondrop="dropCard(event, 0)">
+                        <svg viewBox="0 0 100 100" id="svg0"></svg>
+                    </div>
+                    <div class="fraction-sum" id="sum0">المجموع: 0</div>
+                    <div class="player-pieces-pool" id="pool0"></div>
+                </div>
+
+                <div class="player-card" id="playerCard1">
+                    <div class="turn-indicator">دورك الآن 🎲</div>
+                    <div class="player-name" id="p1Name">الطالب 2</div>
+                    <div class="circle-board" id="board1" ondragover="allowDrop(event)" ondrop="dropCard(event, 1)">
+                        <svg viewBox="0 0 100 100" id="svg1"></svg>
+                    </div>
+                    <div class="fraction-sum" id="sum1">المجموع: 0</div>
+                    <div class="player-pieces-pool" id="pool1"></div>
+                </div>
+
+                <div class="player-card" id="playerCard2">
+                    <div class="turn-indicator">دورك الآن 🎲</div>
+                    <div class="player-name" id="p2Name">الطالب 3</div>
+                    <div class="circle-board" id="board2" ondragover="allowDrop(event)" ondrop="dropCard(event, 2)">
+                        <svg viewBox="0 0 100 100" id="svg2"></svg>
+                    </div>
+                    <div class="fraction-sum" id="sum2">المجموع: 0</div>
+                    <div class="player-pieces-pool" id="pool2"></div>
+                </div>
+            </div>
+
+            <div class="center-dashboard">
+                <div class="dice-box">
+                    <div class="dice" id="diceView" onclick="rollDice()">🎲</div>
+                    <button class="btn-roll" id="rollBtn" onclick="rollDice()">ارمِ النرد</button>
+                </div>
+
+                <div class="table-cards-container">
+                    <div class="section-title">طاولة البطاقات المتاحة للسحب (أو أرجع إليها البطاقات عند الحاجة):</div>
+                    <div class="cards-grid" id="tableCards" ondragover="allowDrop(event)" ondrop="dropCardToDeck(event)"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <h2>🚀 لوحة تحكم المعلم والطلاب</h2>
+            <p style="font-size:0.85rem; color:#64748b; margin-bottom:1rem;">اختر طريقة بدء الحصة الافتراضية</p>
+            <input type="text" id="usernameInput" placeholder="اسمك أو اسم الطالب..." value="المعلم (علاء)">
+            <input type="text" id="roomCodeInput" placeholder="رمز الغرفة (مثال: MATH123)" value="MATH123">
+            
+            <div class="modal-buttons">
+                <button class="btn-teacher" onclick="createTeacherRoom()">👨‍🏫 إنشاء غرفة جديدة (للمعلم)</button>
+                <button class="btn-primary" onclick="joinRoom()">🎓 انضمام أونلاين برمز الغرفة</button>
+                <button class="btn-secondary" onclick="startLocalDemo()">💻 معاينة محلية فورية (بدون نت)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+
+            if (type === 'dice') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'pop') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'win') {
+                confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+                const now = audioCtx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                    const nOsc = audioCtx.createOscillator();
+                    const nGain = audioCtx.createGain();
+                    nOsc.connect(nGain); nOsc.connect(audioCtx.destination);
+                    nOsc.frequency.setValueAtTime(freq, now + idx * 0.12);
+                    nGain.gain.setValueAtTime(0.3, now + idx * 0.12);
+                    nGain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.3);
+                    nOsc.start(now + idx * 0.12); nOsc.stop(now + idx * 0.12 + 0.3);
+                });
+            }
+        }
+
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT"
+        };
+        let db = null;
+        try {
+            if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+            }
+        } catch (e) { console.log("Local Mode Active"); }
+
+        let gameState = {
+            roomCode: "DEMO",
+            currentPlayerIndex: 0,
+            diceValue: null,
+            players: [
+                { name: "الطالب 1", pieces: [] },
+                { name: "الطالب 2", pieces: [] },
+                { name: "الطالب 3", pieces: [] }
+            ],
+            deck: [
+                { id: 1, val: 0.5, label: "1/2", class: "card-1-2" },
+                { id: 2, val: 0.5, label: "1/2", class: "card-1-2" },
+                { id: 3, val: 0.25, label: "1/4", class: "card-1-4" },
+                { id: 4, val: 0.25, label: "1/4", class: "card-1-4" },
+                { id: 5, val: 0.25, label: "1/4", class: "card-1-4" },
+                { id: 6, val: 0.1666, label: "1/6", class: "card-1-6" },
+                { id: 7, val: 0.1666, label: "1/6", class: "card-1-6" },
+                { id: 8, val: 0.1666, label: "1/6", class: "card-1-6" },
+                { id: 9, val: 0.1666, label: "1/6", class: "card-1-6" },
+                { id: 10, val: 0.0833, label: "1/12", class: "card-1-12" },
+                { id: 11, val: 0.0833, label: "1/12", class: "card-1-12" },
+                { id: 12, val: 0.0833, label: "1/12", class: "card-1-12" }
+            ]
+        };
+
+        let isOnline = false;
+
+        const tasks = {
+            1: "اسحب أي بطاقة كسر من الطاولة.",
+            2: "اسحب بطاقة من لوح أحد المنافسين!",
+            3: "اسحب بطاقة الكسر (1/2) حصراً.",
+            4: "اسحب بطاقة الكسر (1/4) حصراً.",
+            5: "أعد بطاقة من لوحك إلى الطاولة.",
+            6: "اسحب بطاقة الكسر (1/6) حصراً."
+        };
+
+        const pieceColors = {
+            "1/2": "#eb134b",
+            "1/4": "#1368ce",
+            "1/6": "#26890c",
+            "1/12": "#ffa602"
+        };
+
+        function startLocalDemo() {
+            document.getElementById("loginModal").style.display = "none";
+            renderApp();
+        }
+
+        function createTeacherRoom() {
+            const randomCode = "MATH-" + Math.floor(100 + Math.random() * 900);
+            gameState.roomCode = randomCode;
+            document.getElementById("roomDisplay").innerText = "غرفة المعلم: " + randomCode;
+            document.getElementById("loginModal").style.display = "none";
+
+            if (db) {
+                isOnline = true;
+                db.ref("rooms/" + randomCode).set(gameState);
+                db.ref("rooms/" + randomCode).on("value", (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) { gameState = data; renderApp(); }
+                });
+            } else {
+                alert("تم توليد الغرفة برمز: " + randomCode + " (وضع محلي جاهز للعرض)");
+                renderApp();
+            }
+        }
+
+        function joinRoom() {
+            const room = document.getElementById("roomCodeInput").value || "MATH123";
+            gameState.roomCode = room;
+            document.getElementById("roomDisplay").innerText = "غرفة: " + room;
+            document.getElementById("loginModal").style.display = "none";
+
+            if (db) {
+                isOnline = true;
+                const roomRef = db.ref("rooms/" + room);
+                roomRef.on("value", (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) { gameState = data; renderApp(); }
+                    else { roomRef.set(gameState); }
+                });
+            } else {
+                renderApp();
+            }
+        }
+
+        function updateState() {
+            if (isOnline && db) {
+                db.ref("rooms/" + gameState.roomCode).set(gameState);
+            } else {
+                renderApp();
+            }
+        }
+
+        function renderApp() {
+            for (let i = 0; i < 3; i++) {
+                document.getElementById(`p${i}Name`).innerText = gameState.players[i].name;
+                const card = document.getElementById(`playerCard${i}`);
+                if (i === gameState.currentPlayerIndex) {
+                    card.classList.add("active");
+                } else {
+                    card.classList.remove("active");
+                }
+                renderCircleSVG(i);
+                renderPlayerPool(i);
+            }
+
+            const tableCardsDiv = document.getElementById("tableCards");
+            tableCardsDiv.innerHTML = "";
+
+            gameState.deck.forEach((card) => {
+                const el = document.createElement("div");
+                el.className = `card-piece ${card.class}`;
+
+                let isAllowed = false;
+                if (gameState.diceValue === 1) isAllowed = true;
+                else if (gameState.diceValue === 3 && card.label === "1/2") isAllowed = true;
+                else if (gameState.diceValue === 4 && card.label === "1/4") isAllowed = true;
+                else if (gameState.diceValue === 6 && card.label === "1/6") isAllowed = true;
+
+                if (!isAllowed || gameState.diceValue === null || gameState.diceValue === 5) {
+                    el.classList.add("disabled");
+                    el.draggable = false;
+                } else {
+                    el.draggable = true;
+                    el.ondragstart = (e) => {
+                        playSound('pop');
+                        e.dataTransfer.setData("source", "deck");
+                        e.dataTransfer.setData("cardId", card.id);
+                    };
+                }
+
+                el.innerText = card.label;
+                tableCardsDiv.appendChild(el);
+            });
+
+            if (gameState.diceValue) {
+                document.getElementById("diceView").innerText = gameState.diceValue;
+                document.getElementById("taskBanner").innerHTML = `<span>النتيجة (${gameState.diceValue}): ${tasks[gameState.diceValue]}</span>`;
+            }
+        }
+
+        function rollDice() {
+            playSound('dice');
+            const diceEl = document.getElementById("diceView");
+            diceEl.classList.add("rolling");
+            document.getElementById("rollBtn").disabled = true;
+
+            setTimeout(() => {
+                diceEl.classList.remove("rolling");
+                const val = Math.floor(Math.random() * 6) + 1;
+                gameState.diceValue = val;
+                document.getElementById("rollBtn").disabled = false;
+                updateState();
+            }, 400);
+        }
+
+        function allowDrop(ev) { ev.preventDefault(); }
+
+        // Helper to compute player's current total fraction sum
+        function getPlayerTotalSum(playerIdx) {
+            return gameState.players[playerIdx].pieces.reduce((sum, p) => sum + p.val, 0);
+        }
+
+        function dropCard(ev, targetPlayerIdx) {
+            ev.preventDefault();
+            if (targetPlayerIdx !== gameState.currentPlayerIndex) {
+                alert("تنبيه: يجب إسقاط القطعة على لوحة اللاعب صاحب الدور الحالي!");
+                return;
+            }
+
+            const source = ev.dataTransfer.getData("source");
+            const currentTotal = getPlayerTotalSum(targetPlayerIdx);
+
+            if (source === "deck") {
+                const cardId = parseInt(ev.dataTransfer.getData("cardId"));
+                const cardIndex = gameState.deck.findIndex(c => c.id === cardId);
+                if (cardIndex !== -1) {
+                    const candidateCard = gameState.deck[cardIndex];
+
+                    // STRICT VALIDATION: Check if candidate piece exceeds 1.0
+                    if (currentTotal + candidateCard.val > 1.001) {
+                        alert(`عذراً! الكسر (${candidateCard.label}) يتجاوز المجموع (1 صحيح). لا يمكنك إضافته إلى لوحتك!`);
+                        return; // Prevent adding piece
+                    }
+
+                    addPieceToPlayer(targetPlayerIdx, candidateCard);
+                    gameState.deck.splice(cardIndex, 1);
+                    finishTurn(targetPlayerIdx);
+                }
+            } else if (source === "opponent") {
+                const fromPlayerIdx = parseInt(ev.dataTransfer.getData("fromPlayerIdx"));
+                const pieceIdx = parseInt(ev.dataTransfer.getData("pieceIdx"));
+
+                if (fromPlayerIdx === targetPlayerIdx) {
+                    alert("لا يمكنك السحب من لوحك الخاص!");
+                    return;
+                }
+
+                const stolenPiece = gameState.players[fromPlayerIdx].pieces[pieceIdx];
+
+                // STRICT VALIDATION: Check if stolen piece exceeds 1.0
+                if (currentTotal + stolenPiece.val > 1.001) {
+                    alert(`عذراً! الكسر المسحوب (${stolenPiece.label}) يتجاوز المجموع (1 صحيح). لا يتسع له لوحك!`);
+                    return; // Prevent adding piece
+                }
+
+                gameState.players[fromPlayerIdx].pieces.splice(pieceIdx, 1);
+                addPieceToPlayer(targetPlayerIdx, stolenPiece);
+                playSound('pop');
+                finishTurn(targetPlayerIdx);
+            }
+        }
+
+        function dropCardToDeck(ev) {
+            ev.preventDefault();
+            if (gameState.diceValue !== 5) {
+                alert("مهمة إعادة البطاقة للطاولة مسموحة فقط عندما يظهر رقم 5 على النرد!");
+                return;
+            }
+
+            const source = ev.dataTransfer.getData("source");
+            if (source === "myPool") {
+                const pieceIdx = parseInt(ev.dataTransfer.getData("pieceIdx"));
+                const currentIdx = gameState.currentPlayerIndex;
+                const returnedPiece = gameState.players[currentIdx].pieces.splice(pieceIdx, 1)[0];
+                
+                gameState.deck.push(returnedPiece);
+                playSound('pop');
+                finishTurn(currentIdx);
+            }
+        }
+
+        function addPieceToPlayer(playerIdx, piece) {
+            gameState.players[playerIdx].pieces.push(piece);
+        }
+
+        function finishTurn(playerIdx) {
+            const sum = getPlayerTotalSum(playerIdx);
+            if (Math.abs(sum - 1.0) < 0.01) {
+                playSound('win');
+                alert(`🎉 مبروك! أكمل الطالب (${gameState.players[playerIdx].name}) دائرة كاملة (1 صحيح)!`);
+            } else {
+                gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % 3;
+                gameState.diceValue = null;
+            }
+            updateState();
+        }
+
+        function renderPlayerPool(playerIdx) {
+            const pool = document.getElementById(`pool${playerIdx}`);
+            pool.innerHTML = "";
+            const isCurrentPlayer = playerIdx === gameState.currentPlayerIndex;
+            const isOpponent = !isCurrentPlayer;
+
+            gameState.players[playerIdx].pieces.forEach((p, idx) => {
+                const chip = document.createElement("div");
+                chip.className = `card-piece ${p.class}`;
+                chip.style.width = "32px";
+                chip.style.height = "32px";
+                chip.style.fontSize = "0.7rem";
+                chip.innerText = p.label;
+
+                if (isOpponent && gameState.diceValue === 2) {
+                    chip.draggable = true;
+                    chip.style.border = "2px solid #ffa602";
+                    chip.ondragstart = (e) => {
+                        playSound('pop');
+                        e.dataTransfer.setData("source", "opponent");
+                        e.dataTransfer.setData("fromPlayerIdx", playerIdx);
+                        e.dataTransfer.setData("pieceIdx", idx);
+                    };
+                } 
+                else if (isCurrentPlayer && gameState.diceValue === 5) {
+                    chip.draggable = true;
+                    chip.style.border = "2px solid #eb134b";
+                    chip.ondragstart = (e) => {
+                        playSound('pop');
+                        e.dataTransfer.setData("source", "myPool");
+                        e.dataTransfer.setData("pieceIdx", idx);
+                    };
+                } else {
+                    chip.draggable = false;
+                }
+                pool.appendChild(chip);
+            });
+        }
+
+        function renderCircleSVG(playerIdx) {
+            const svg = document.getElementById(`svg${playerIdx}`);
+            svg.innerHTML = "";
+            const pieces = gameState.players[playerIdx].pieces;
+
+            let startAngle = 0;
+            let totalVal = 0;
+
+            pieces.forEach(p => {
+                const angle = p.val * 360;
+                const endAngle = startAngle + angle;
+                const pathData = getSectorPath(50, 50, 48, startAngle, endAngle);
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", pathData);
+                path.setAttribute("fill", pieceColors[p.label] || "#38bdf8");
+                path.setAttribute("stroke", "#ffffff");
+                path.setAttribute("stroke-width", "2");
+
+                svg.appendChild(path);
+                startAngle = endAngle;
+                totalVal += p.val;
+            });
+
+            document.getElementById(`sum${playerIdx}`).innerText = `المجموع: ${Math.round(totalVal * 100)}%`;
+        }
+
+        function getSectorPath(cx, cy, r, startAngle, endAngle) {
+            const rad = Math.PI / 180;
+            const x1 = cx + r * Math.cos(startAngle * rad);
+            const y1 = cy + r * Math.sin(startAngle * rad);
+            const x2 = cx + r * Math.cos(endAngle * rad);
+            const y2 = cy + r * Math.sin(endAngle * rad);
+            const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+            return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+        }
+    </script>
+</body>
+</html>
